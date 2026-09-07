@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Asphalt Legends Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <div class="header glass-panel">
+      <div class="logo-box">
+        <img src="image.jpg" style="height:150px; width:auto; border-radius:10px;" alt="Logo">
+      </div>
+      <div class="header-right">
+        <div class="season-badge" id="header-season-badge">— Season</div>
+        <div class="date-badge" id="header-date"></div>
+      </div>
+    </div>
+
+    <div class="season-selector glass-panel">
+      <label style="color:#fff;">Season:</label>
+      <select id="season-select"></select>
+      <button class="btn new-season-btn" onclick="newSeasonDialog()">+ New</button>
+      <button class="btn btn-warning" id="lock-season-btn" onclick="lockCurrentSeason()">Lock 🔒</button>
+      <button class="btn btn-danger" onclick="deleteCurrentSeason()">Delete</button>
+
+      <div style="margin-left: auto; display: flex; gap: 10px;">
+        <button class="btn btn-primary" onclick="exportData()" style="padding:8px 14px; font-size:12px;">Export</button>
+        <button class="btn" onclick="document.getElementById('import-file').click()"
+          style="padding:8px 14px; font-size:12px;">Import</button>
+        <input type="file" id="import-file" style="display:none" onchange="importData(event)" accept=".json">
+      </div>
+    </div>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('today')">Today</button>
+      <button class="nav-tab" onclick="switchTab('calendar')">Calendar</button>
+      <button class="nav-tab" onclick="switchTab('history')">History</button>
+      <button class="nav-tab" onclick="switchTab('cars')">Car Stats</button>
+      <button class="nav-tab" onclick="switchTab('season')">Overview</button>
+      <button class="nav-tab" onclick="switchTab('analytics')">Analytics</button>
+    </div>
+
+    <div id="tab-today">
+      <div class="stats-row" id="today-stats"></div>
+
+      <div class="add-race-card glass-panel" id="log-race-card">
+        <div class="section-title">Log a Race</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <div class="form-label">Map</div>
+            <select id="map-select" onchange="populateTracks()">
+              <option value="">— Select map —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Track</div>
+            <select id="track-select">
+              <option value="">— Select track —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Car</div>
+            <div class="autocomplete-wrap">
+              <input type="text" id="car-input" placeholder="e.g. Bugatti..." oninput="filterCars()"
+                onfocus="showCarList()" onblur="hideCarList()">
+              <div id="car-list" class="autocomplete-list" style="display:none"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Position</div>
+            <select id="position-select">
+              <option value="1">1st — Win</option>
+              <option value="2">2nd</option>
+              <option value="3">3rd</option>
+              <option value="4">4th</option>
+              <option value="5">5th</option>
+              <option value="6">6th</option>
+              <option value="7">7th</option>
+              <option value="8">8th</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row"><button class="btn btn-primary" onclick="addRace()">Log Race</button></div>
+      </div>
+
+      <div id="locked-season-msg" class="empty-state glass-panel" style="display:none; padding: 2rem 1rem;">
+        <div class="empty-icon">🔒</div>
+        <div>This season is permanently locked. No new races can be added.</div>
+      </div>
+
+      <div class="section-title">Today's Races</div>
+      <div id="today-race-list" class="glass-panel" style="padding: 10px;"></div>
+    </div>
+
+    <div id="tab-calendar" style="display:none">
+      <div class="filter-row">
+        <label style="color:#fff;">Select Date:</label>
+        <input type="date" id="calendar-date" onchange="renderCalendar()">
+      </div>
+      <div id="calendar-empty" class="empty-state glass-panel" style="display:none">
+        <div class="empty-icon">📅</div>
+        <div style="color:#fff;">No race data is available for this date.</div>
+      </div>
+      <div id="calendar-content" style="display:none">
+        <div class="chart-grid">
+          <div class="chart-wrap glass-panel"><canvas id="calendarPieChart"></canvas></div>
+          <div class="chart-wrap glass-panel"><canvas id="calendarBarChart"></canvas></div>
+        </div>
+        <div class="section-title">Races</div>
+        <div id="calendar-race-list" class="glass-panel" style="padding: 10px;"></div>
+      </div>
+    </div>
+
+    <div id="tab-history" style="display:none">
+      <div class="filter-row">
+        <select id="filter-map">
+          <option value="">All maps</option>
+        </select>
+        <input type="text" id="filter-car" placeholder="Filter car..." oninput="renderHistory()">
+        <select id="filter-result" onchange="renderHistory()">
+          <option value="">All Results</option>
+          <option value="win">Wins</option>
+          <option value="loss">Losses</option>
+        </select>
+      </div>
+      <div id="history-list" class="glass-panel" style="padding: 10px;"></div>
+    </div>
+
+    <div id="tab-cars" style="display:none">
+      <div class="filter-row">
+        <select id="car-season-filter" onchange="renderCarStats()"></select>
+        <input type="text" id="car-search-stats" placeholder="Search car..." oninput="renderCarStats()">
+      </div>
+      <div id="car-stats-list"></div>
+    </div>
+
+    <div id="tab-season" style="display:none">
+      <div class="filter-row">
+        <select id="season-overview-filter" onchange="toggleOverviewDate(); renderSeasonOverview()">
+          <option value="season">Entire Season</option>
+          <option value="date">Specific Date</option>
+        </select>
+        <input type="date" id="overview-date" style="display:none" onchange="renderSeasonOverview()">
+      </div>
+      <div id="season-overview"></div>
+      <div class="chart-wrap glass-panel" id="season-map-chart-wrap" style="display:none"><canvas
+          id="seasonMapChart"></canvas></div>
+    </div>
+
+    <div id="tab-analytics" style="display:none">
+      <div class="filter-row">
+        <select id="chart-groupby" onchange="toggleSeasonFilter(); renderCharts()">
+          <option value="day">Day</option>
+          <option value="month">Month</option>
+          <option value="season">Season</option>
+        </select>
+        <select id="analytics-season-select" style="display:none" onchange="renderCharts()"></select>
+      </div>
+      <div class="chart-wrap glass-panel"><canvas id="winLossChart"></canvas></div>
+    </div>
+
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // Database & Game Variables (UPDATED with Mt. Fuji & New Cars)
+    const MAPS_TRACKS = {
+      "San Francisco": ["The Tunnel", "Railroad Bustle", "City Dash", "Waterside", "Downtown Rise", "Roller Coaster Ride", "Rush Minute", "Street of San Francisco", "Tunnel Jam", "Bridge View", "Bridge Finale", "The City of the Bay"],
+      "Cairo": ["A Kings Revival", "Egyptian Wonder", "Cairo Tower Finish", "Scenic Route", "Ancient Wonders", "Back Burn", "Gezira Island", "Urban Blaze", "Subterranean Dash", "Nile River", "Pharaoh Games"],
+      "Himalayas": ["Freefall", "Leap of Faith", "Snow Vault", "Landslide", "Cave Heat", "Cliffhanger", "Dipping Down", "Downhill Run", "Frozen Route", "Mountain Poles", "Asphalt Cave"],
+      "Nevada": ["Bridge to Bridge", "Hairpin Sprint", "Winding Road", "Dam Buster", "Desert Drift", "Desert Life", "Desert Run", "Sprint Finish", "The Narrows"],
+      "New York": ["A Run in the Park", "Friendly Neighbourhood", "Wall Street Ride", "Zeppelin Race", "Airdropped", "Leaps & Bounds", "Quantum Jumps", "Subway Surfing", "The City that Never Sleeps", "Uptown", "Sightseeing", "Urban Exodus"],
+      "Osaka": ["Meiji Rush", "Namba Park", "Rat Race", "Sakura Castle", "Budding Start", "Industrial Revolution", "Kita Run", "Moat Finale", "Naniwa Tour", "Refined Finish", "Large Hill", "Welcome to Osaka"],
+      "Rome": ["Roman Byroads", "Roman Tumble", "Bread & Circuses", "Tiber Cross", "Ancient Rome", "Capital of the World", "Pantheon Split", "Saint Peter Kickoff", "The Eternal City", "Tiber Stream", "Alternate Route", "Complete Tour"],
+      "Scotland": ["Ghost Ships", "Rocky Valley", "Lighthouse", "The Enchanted Island", "Ancient Ruins", "The Cave", "The Path of Wind", "Wildlands", "The Freedom Route", "The Windmills"],
+      "Shanghai": ["Double Roundabout", "Paris of the East", "Future Road", "Reach of the Sky", "Nanjing Stroll", "The Pearl of the Orient", "Pudong Rise", "Shen City", "People Square Dash", "Shopping Spree"],
+      "The Caribbean": ["Hell Vale", "Islet Race", "Resort Dash", "Hotel Road", "Beach Landing", "Paradise Resort", "Pier Pressure", "Thundering Start", "All-Inclusive", "Island Tour"],
+      "U.S. Midwest": ["Its a Twister", "Trainspotter", "Rolling Motorway", "Time Travel", "Canyon Launch", "Covered Bridge", "Gold Rush", "Transcontinental Race", "Whirlwind Curve", "Navajo Nation", "US Wilderness"],
+      "Buenos Aires": ["Subte Dash", "La Boca Sprint", "Palermo Loop", "Harbor Run", "Obelisk Rush", "Pampas Race", "Rio Plate Circuit", "City Lights"],
+      "Greenland": ["Ice Fields", "Arctic Circle", "Glacier Sprint", "Tundra Run", "Volcano Ridge", "Aurora Track", "Snowstorm Circuit", "Cold Harbor", "Frozen Lake", "Iceberg Alley", "Summit Rush", "Alpine Cross", "Polar Express", "Deep Freeze"],
+      "Auckland": ["Sky Tower Sprint", "Harbour Bridge", "CBD Circuit", "Wynyard Loop", "Eden Circuit", "Waterfront Rush", "Bay Run", "City Surge"],
+      "Paris": ["Eiffel Sprint", "Louvre Loop", "Seine River Run", "Champs Circuit", "Montmartre Dash", "Arc de Triomphe", "Left Bank", "City of Light", "Notre Dame Rush", "Sacre Coeur", "Palais Royal", "Grand Boulevard"],
+      "Tuscany": ["Vineyard Road", "Siena Circuit", "Rolling Hills", "San Gimignano Sprint", "Pisa Run", "Arno River", "Olive Grove Circuit", "Medieval Chase"],
+      "Norway": ["Fjord Run", "Northern Lights", "Viking Trail", "Midnight Sun", "Bergen Circuit", "Oslo Sprint", "Mountain Pass", "Waterfall Track", "Cliff Road", "Stave Church Loop"],
+      "Singapore": ["Marina Bay Circuit", "Gardens Sprint", "Merlion Rush", "Esplanade Loop", "Orchard Road", "Clarke Quay", "Sentosa Run", "City State Circuit"],
+      "Chicago": ["Windy City Sprint", "Lakeshore Drive", "The Loop Circuit", "Wrigley Rush", "Millennium Park", "River North", "South Side Circuit", "Jazz District"],
+      "San Diego Harbor": ["Pacific Coast", "Harbor View", "Coronado Bridge", "Gaslamp Sprint", "Petco Circuit", "Mission Bay", "Point Loma Run", "Bay Circuit"],
+      "India": ["Mumbai Sprint", "Taj Mahal Run", "Delhi Circuit", "Jaipur Loop", "Goa Coastal", "Bangalore Tech", "Old Delhi Dash", "Rajpath Circuit"],
+      "Mt. Fuji": ["Sakura Sprint", "Volcano View", "Fuji Ascent", "High Altitude Dash", "Shinto Run", "Mountain Descent"]
+    };
+
+    const ALL_CARS = [
+      "Acura NSX", "Alfa Romeo Giulia GTAm", "Apollo IE", "Arash AF10", "Arash Imperium", "Ares Design Panther", "Aston Martin DB11", "Aston Martin DBS Superleggera", "Aston Martin DBS 770 Ultimate", "Aston Martin One-77", "Aston Martin Valiant", "Aston Martin Valkyrie", "Aston Martin Vantage GT12", "ATS Automobili GT", "Automobili Pininfarina Battista", "Automobili Pininfarina B95", "Automobili Pininfarina Teorema", "BMW M2 Competition", "BMW M4 Competition", "BMW M4 GT3", "BMW M Hybrid V8", "BMW 3.0 CSL", "Brabham BT62", "Bugatti Bolide", "Bugatti Chiron", "Bugatti Chiron Pur Sport", "Bugatti Chiron Super Sport 300+", "Bugatti Divo", "Bugatti Mistral", "Bugatti Tourbillon", "Bugatti Veyron 16.4 SS", "Cadillac CT5-V", "Centenari", "Chevrolet Camaro ZL1", "Chevrolet Corvette C8 Stingray", "Chevrolet Corvette ZR1", "Chevrolet Corvette ZR1 (C8)", "Citroën GT", "Czinger 21C", "De Tomaso P72", "Deus Vayanne", "Devel Sixteen", "Dodge Charger SRT Hellcat Redeye", "Donkervoort F22", "Drako GTE", "DS Survolt", "Exotic Rides Cthulhu", "Faraday Future FFZERO1", "Ferrari 296 GTB", "Ferrari 488 GTB", "Ferrari 488 Pista", "Ferrari 499P Modificata", "Ferrari 812 Superfast", "Ferrari Daytona SP3", "Ferrari Enzo Ferrari", "Ferrari F12 Berlinetta", "Ferrari F50", "Ferrari F8 Tributo", "Ferrari F80", "Ferrari FXX K", "Ferrari LaFerrari", "Ferrari Monza SP1", "Ferrari Portofino M", "Ferrari SF90 Stradale", "Ford GT", "Ford Mustang GTD", "Ford Mustang RTR", "Ford Shelby GT350R", "Ford Shelby Super Snake", "FV Frangivento Sorpasso", "Genty Automobile Akylone", "Ginetta G60", "Glickenhaus 007S", "Hennessey Venom F5", "Honda NSX Type S", "Honda S2000", "Jaguar XJR-9", "Jaguar F-Type R", "Koenigsegg Agera RS", "Koenigsegg CC850", "Koenigsegg Chimera", "Koenigsegg Gemera", "Koenigsegg Jesko Absolut", "Koenigsegg One:1", "Lamborghini Aventador SVJ", "Lamborghini Centenario", "Lamborghini Countach LPI 800-4", "Lamborghini Essenza SCV12", "Lamborghini Huracán EVO Spyder", "Lamborghini Huracán STO", "Lamborghini Invencible", "Lamborghini Murcielago LP 640", "Lamborghini Revuelto", "Lamborghini SC63", "Lamborghini Sesto Elemento", "Lamborghini Temerario", "LEGO Technic Bugatti Chiron", "LEGO Technic Ferrari FXXK", "LEGO Technic Koenigsegg Jesko", "LEGO Technic Lamborghini Sian", "LEGO Technic McLaren Senna GTR", "Lotus Emira", "Lotus Emeya", "Lotus Evija", "Maserati Alfieri", "Maserati GranTurismo", "Maserati MC20", "Maserati MC20 GT2", "McLaren 600LT Spider", "McLaren 720S", "McLaren 750S", "McLaren Artura", "McLaren P1", "McLaren Senna", "McLaren Senna GTR", "McLaren Solus GT", "McLaren Speedtail", "McLaren W1", "McMurtry Spéirling", "Mercedes-AMG GT Black Series", "Mercedes-AMG GT R Pro", "Mercedes-AMG ONE", "Mercedes-Benz CLK GTR", "Mercedes-Benz Silver Lightning", "Mercedes-Benz Vision AMG", "Mosler Super GT5", "Nissan GT-R Nismo", "Nissan Z GT4", "Pagani Huayra BC", "Pagani Huayra Roadster", "Pagani Utopia", "Pagani Zonda Cinque", "Pagani Zonda HP Barchetta", "Peugeot Onyx", "Pininfarina H2 Speed", "Porsche 718 Cayman GT4", "Porsche 911 GT2 RS", "Porsche 911 GT3 RS", "Porsche 911 GTS", "Porsche 911 Turbo S", "Porsche 918 Spyder", "Porsche 935", "Porsche Mission R", "Porsche Mission X", "Porsche Panamera Turbo S", "RAESR Aglaia", "Rimac Concept_One", "Rimac Concept_Two", "Rimac Nevera", "Rimac Nevera R", "Rimac Nevera Time Attack", "SSC Tuatara", "SSC Ultimate Aero TT", "Torino Design Super Sport", "Toyota GR Supra", "Trion Nemesis", "Tushek Aeon E", "Ultima RS", "W Motors Fenyr SuperSport", "W Motors Lykan HyperSport", "W Motors Lykan HyperSport Neon Edition", "Zenvo Aurora Agil", "Zenvo Aurora Tur", "Zenvo TSR-S"
+    ];
+
+    let db = { seasons: {} };
+    let currentSeason = '';
+    let currentTab = 'today';
+    let carListVisible = false;
+
+    let myChart = null;
+    let calPieChart = null;
+    let calBarChart = null;
+    let seasonMapChartInstance = null;
+
+    function todayStr() {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    let loadedDate = todayStr();
+
+    // Themed Global configuration for Chart.js
+    Chart.defaults.color = 'rgba(255,255,255,0.7)';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+    Chart.defaults.font.family = "'Rajdhani', sans-serif";
+
+    function loadDB() {
+      try {
+        const stored = localStorage.getItem('asphalt_db');
+        if (stored) db = JSON.parse(stored);
+      } catch (e) {
+        console.error("Failed to load local data:", e);
+      }
+
+      if (!db.seasons || Object.keys(db.seasons).length === 0) {
+        const s = 'Season 1';
+        db.seasons = {};
+        db.seasons[s] = { races: [], locked: false };
+        currentSeason = s;
+      } else {
+        const keys = Object.keys(db.seasons);
+        currentSeason = db.currentSeason && db.seasons[db.currentSeason] ? db.currentSeason : keys[keys.length - 1];
+      }
+
+      document.getElementById('calendar-date').value = todayStr();
+      document.getElementById('overview-date').value = todayStr();
+
+      renderSeasonSelector();
+      renderAll();
+    }
+
+    function saveDB() {
+      db.currentSeason = currentSeason;
+      try {
+        localStorage.setItem('asphalt_db', JSON.stringify(db));
+      } catch (e) {
+        console.error("Failed to save data:", e);
+        showToast("Error saving data.", "err");
+      }
+    }
+
+    // Midnight Reset Checker
+    setInterval(() => {
+      if (todayStr() !== loadedDate) {
+        loadedDate = todayStr();
+        renderAll();
+        showToast("New day started! Board cleared.");
+      }
+    }, 60000);
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+      const anchor = document.createElement('a');
+      anchor.setAttribute("href", dataStr);
+      anchor.setAttribute("download", "asphalt_legends_backup.json");
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      showToast("Backup exported!");
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.seasons) {
+            db = imported;
+            saveDB();
+            loadDB();
+            showToast("Data imported successfully!");
+          } else {
+            showToast("Invalid backup file", "err");
+          }
+        } catch (err) {
+          showToast("Error reading file", "err");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function renderSeasonSelector() {
+      const sel = document.getElementById('season-select');
+      sel.innerHTML = '';
+      Object.keys(db.seasons).forEach(s => {
+        const o = document.createElement('option');
+        o.value = s;
+        o.textContent = s + (db.seasons[s].locked ? ' 🔒' : '');
+        if (s === currentSeason) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.onchange = () => { currentSeason = sel.value; renderAll(); };
+    }
+
+    function newSeasonDialog() {
+      const name = prompt('Enter season name:');
+      if (!name || !name.trim()) return;
+      const key = name.trim();
+      if (db.seasons[key]) { alert('Season already exists!'); return; }
+      db.seasons[key] = { races: [], locked: false };
+      currentSeason = key;
+      saveDB();
+      renderSeasonSelector();
+      renderAll();
+      showToast(`Created ${key}`);
+    }
+
+    function lockCurrentSeason() {
+      if (!db.seasons[currentSeason]) return;
+      if (db.seasons[currentSeason].locked) return;
+      if (!confirm(`Are you sure you want to lock "${currentSeason}" permanently?`)) return;
+
+      db.seasons[currentSeason].locked = true;
+      saveDB();
+      renderSeasonSelector();
+      renderAll();
+      showToast(`Season locked`);
+    }
+
+    function deleteCurrentSeason() {
+      const keys = Object.keys(db.seasons);
+      if (keys.length <= 1) {
+        showToast("Cannot delete the only season!", "err");
+        return;
+      }
+      if (!confirm(`WARNING: Permanently delete "${currentSeason}"?`)) return;
+
+      delete db.seasons[currentSeason];
+      currentSeason = Object.keys(db.seasons)[0];
+      saveDB();
+      renderSeasonSelector();
+      renderAll();
+      showToast("Season deleted");
+    }
+
+    function getRaces() { return (db.seasons[currentSeason] && db.seasons[currentSeason].races) || []; }
+
+    function switchTab(t) {
+      ['today', 'calendar', 'history', 'cars', 'season', 'analytics'].forEach(tab => {
+        document.getElementById('tab-' + tab).style.display = tab === t ? '' : 'none';
+      });
+      document.querySelectorAll('.nav-tab').forEach((el, i) => {
+        el.classList.toggle('active', ['today', 'calendar', 'history', 'cars', 'season', 'analytics'][i] === t);
+      });
+      currentTab = t;
+      if (currentTab === 'analytics') { populateAnalyticsSeasons(); toggleSeasonFilter(); }
+      renderAll();
+    }
+
+    function renderAll() {
+      updateHeader();
+      renderTodayStats();
+      renderTodayRaces();
+      renderHistory();
+      populateCarSeasons();
+      renderCarStats();
+      renderSeasonOverview();
+
+      if (currentTab === 'analytics') renderCharts();
+      if (currentTab === 'calendar') renderCalendar();
+    }
+
+    function updateHeader() {
+      const isLocked = db.seasons[currentSeason] && db.seasons[currentSeason].locked;
+      document.getElementById('header-season-badge').innerHTML = currentSeason + (isLocked ? ' <span style="font-size:12px;">🔒</span>' : '');
+      const d = new Date();
+      document.getElementById('header-date').textContent = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+      const addCard = document.getElementById('log-race-card');
+      const lockedMsg = document.getElementById('locked-season-msg');
+      const lockBtn = document.getElementById('lock-season-btn');
+
+      if (isLocked) {
+        if (addCard) addCard.style.display = 'none';
+        if (lockedMsg) lockedMsg.style.display = 'block';
+        if (lockBtn) lockBtn.style.display = 'none';
+      } else {
+        if (addCard) addCard.style.display = 'block';
+        if (lockedMsg) lockedMsg.style.display = 'none';
+        if (lockBtn) lockBtn.style.display = 'inline-block';
+      }
+    }
+
+    function renderTodayStats() {
+      const races = getRaces();
+      const today = todayStr();
+      const todayRaces = races.filter(r => r.date === today);
+      const wins = todayRaces.filter(r => r.position === 1).length;
+      const losses = todayRaces.length - wins;
+      const wr = todayRaces.length ? Math.round(wins / todayRaces.length * 100) : 0;
+      document.getElementById('today-stats').innerHTML = `
+    <div class="stat-card glass-panel"><div class="stat-label">Races Today</div><div class="stat-value accent">${todayRaces.length}</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Wins Today</div><div class="stat-value win">${wins}</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Losses Today</div><div class="stat-value loss">${losses}</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Win Rate</div><div class="stat-value ${wr >= 50 ? 'win' : 'loss'}">${wr}%</div></div>
+  `;
+    }
+
+    function populateMaps() {
+      const ms = document.getElementById('map-select');
+      const fm = document.getElementById('filter-map');
+      if (ms.options.length <= 1) {
+        Object.keys(MAPS_TRACKS).forEach(m => {
+          const o = document.createElement('option'); o.value = m; o.textContent = m;
+          ms.appendChild(o);
+        });
+      }
+      if (fm && fm.options.length <= 1) {
+        Object.keys(MAPS_TRACKS).forEach(m => {
+          const o = document.createElement('option'); o.value = m; o.textContent = m;
+          fm.appendChild(o);
+        });
+        fm.onchange = () => renderHistory();
+      }
+    }
+
+    function populateTracks() {
+      const map = document.getElementById('map-select').value;
+      const ts = document.getElementById('track-select');
+      ts.innerHTML = '<option value="">— Select track —</option>';
+      if (map && MAPS_TRACKS[map]) {
+        MAPS_TRACKS[map].forEach(t => {
+          const o = document.createElement('option'); o.value = t; o.textContent = t;
+          ts.appendChild(o);
+        });
+      }
+    }
+
+    function filterCars() {
+      const q = document.getElementById('car-input').value.trim().toLowerCase();
+      const list = document.getElementById('car-list');
+      if (!q) { list.style.display = 'none'; return; }
+      const matches = ALL_CARS.filter(c => c.toLowerCase().includes(q)).slice(0, 10);
+      if (!matches.length) { list.style.display = 'none'; return; }
+      list.innerHTML = matches.map((c, i) => `<div class="autocomplete-item" onmousedown="selectCar('${c.replace(/'/g, "&#39;")}')">${highlight(c, q)}</div>`).join('');
+      list.style.display = 'block';
+    }
+
+    function highlight(str, q) {
+      const i = str.toLowerCase().indexOf(q);
+      if (i < 0) return str;
+      return str.slice(0, i) + '<strong style="color:#7b2cff;">' + str.slice(i, i + q.length) + '</strong>' + str.slice(i + q.length);
+    }
+
+    function showCarList() { if (document.getElementById('car-input').value.trim()) filterCars(); }
+    function hideCarList() { setTimeout(() => { document.getElementById('car-list').style.display = 'none'; }, 200); }
+    function selectCar(c) { document.getElementById('car-input').value = c; document.getElementById('car-list').style.display = 'none'; }
+
+    function addRace() {
+      if (db.seasons[currentSeason] && db.seasons[currentSeason].locked) { showToast("Season locked!", "err"); return; }
+      const map = document.getElementById('map-select').value;
+      const track = document.getElementById('track-select').value;
+      const car = document.getElementById('car-input').value.trim();
+      const pos = parseInt(document.getElementById('position-select').value);
+
+      if (!map || !track || !car) { showToast('Fill all fields', 'err'); return; }
+
+      const race = { id: Date.now(), date: todayStr(), map, track, car, position: pos, ts: new Date().toISOString() };
+      if (!db.seasons[currentSeason]) db.seasons[currentSeason] = { races: [], locked: false };
+      db.seasons[currentSeason].races.push(race);
+      saveDB();
+      renderAll();
+      showToast(pos === 1 ? `Win logged! 🏆` : `Race logged`);
+      document.getElementById('car-input').value = '';
+      document.getElementById('position-select').value = '1';
+    }
+
+    function deleteRace(id) {
+      if (db.seasons[currentSeason] && db.seasons[currentSeason].locked) return;
+      if (!confirm('Remove entry?')) return;
+      db.seasons[currentSeason].races = db.seasons[currentSeason].races.filter(r => r.id !== id);
+      saveDB();
+      renderAll();
+      showToast('Race removed');
+    }
+
+    function renderTodayRaces() {
+      const isLocked = db.seasons[currentSeason] && db.seasons[currentSeason].locked;
+      const races = getRaces().filter(r => r.date === todayStr()).slice().reverse();
+      const el = document.getElementById('today-race-list');
+
+      if (!races.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏁</div>No races logged today.</div>'; return; }
+
+      el.innerHTML = `<table class="race-table"><thead><tr><th>#</th><th>Map / Track</th><th>Car</th><th>Pos</th><th></th></tr></thead><tbody>${races.map((r, i) => `
+    <tr>
+      <td style="color:var(--text-muted);font-size:12px;font-weight:700">${races.length - i}</td>
+      <td><div style="font-weight:700; color:#fff">${r.map}</div><div style="font-size:12px;color:rgba(255,255,255,0.6)">${r.track}</div></td>
+      <td style="font-weight:600">${r.car}</td>
+      <td><span class="${r.position === 1 ? 'pos-badge pos-1' : 'pos-badge pos-other'}">P${r.position}</span></td>
+      <td style="text-align:right">${isLocked ? '<span style="font-size:11px;color:rgba(255,255,255,0.4)">Locked</span>' : `<button class="btn btn-danger" onclick="deleteRace(${r.id})">Del</button>`}</td>
+    </tr>`).join('')}</tbody></table>`;
+    }
+
+    function renderHistory() {
+      const isLocked = db.seasons[currentSeason] && db.seasons[currentSeason].locked;
+      const mapF = document.getElementById('filter-map')?.value || '';
+      const carF = (document.getElementById('filter-car')?.value || '').toLowerCase();
+      const resF = document.getElementById('filter-result')?.value || '';
+      let races = getRaces().slice().reverse();
+
+      if (mapF) races = races.filter(r => r.map === mapF);
+      if (carF) races = races.filter(r => r.car.toLowerCase().includes(carF));
+      if (resF === 'win') races = races.filter(r => r.position === 1);
+      if (resF === 'loss') races = races.filter(r => r.position !== 1);
+
+      const el = document.getElementById('history-list');
+      if (!races.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div>No races match filter.</div>'; return; }
+
+      el.innerHTML = `<table class="race-table"><thead><tr><th>Date</th><th>Map / Track</th><th>Car</th><th>Pos</th><th></th></tr></thead><tbody>${races.map(r => `
+    <tr>
+      <td style="font-size:12px;color:rgba(255,255,255,0.6);font-weight:600">${r.date}</td>
+      <td><div style="font-weight:700; color:#fff">${r.map}</div><div style="font-size:12px;color:rgba(255,255,255,0.6)">${r.track}</div></td>
+      <td style="font-weight:600">${r.car}</td>
+      <td><span class="${r.position === 1 ? 'pos-badge pos-1' : 'pos-badge pos-other'}">P${r.position}</span></td>
+      <td style="text-align:right">${isLocked ? '<span style="font-size:11px;color:rgba(255,255,255,0.4)">Locked</span>' : `<button class="btn btn-danger" onclick="deleteRace(${r.id})">Del</button>`}</td>
+    </tr>`).join('')}</tbody></table>`;
+    }
+
+    function populateCarSeasons() {
+      const sel = document.getElementById('car-season-filter');
+      if (!sel) return;
+      const currentVal = sel.value || 'all';
+      sel.innerHTML = '<option value="all">All Seasons</option>';
+      Object.keys(db.seasons).forEach(s => {
+        const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o);
+      });
+      if (currentVal === 'all' || db.seasons[currentVal]) sel.value = currentVal;
+    }
+
+    function renderCarStats() {
+      const q = (document.getElementById('car-search-stats')?.value || '').toLowerCase();
+      const seasonF = document.getElementById('car-season-filter')?.value || 'all';
+
+      let racesToCount = [];
+      if (seasonF === 'all') Object.values(db.seasons).forEach(s => racesToCount.push(...s.races));
+      else if (db.seasons[seasonF]) racesToCount = db.seasons[seasonF].races;
+
+      const stats = {};
+      racesToCount.forEach(r => {
+        if (!stats[r.car]) stats[r.car] = { wins: 0, total: 0 };
+        stats[r.car].total++;
+        if (r.position === 1) stats[r.car].wins++;
+      });
+
+      let cars = Object.entries(stats).sort((a, b) => b[1].total - a[1].total);
+      if (q) cars = cars.filter(([c]) => c.toLowerCase().includes(q));
+
+      const el = document.getElementById('car-stats-list');
+      if (!cars.length) { el.innerHTML = '<div class="empty-state glass-panel"><div class="empty-icon">🚗</div>No car data found.</div>'; return; }
+
+      el.innerHTML = cars.map(([car, s]) => {
+        const wr = Math.round(s.wins / s.total * 100);
+        const lossPct = 100 - wr;
+        return `<div class="car-stat-card glass-panel">
+      <div class="car-name">🏎️ ${car}</div>
+      <div class="mini-stats">
+        <div class="mini-stat">Races: <span style="color:#fff">${s.total}</span></div>
+        <div class="mini-stat">Wins: <span style="color:#00e676">${s.wins}</span></div>
+        <div class="mini-stat">Losses: <span style="color:#ff1744">${s.total - s.wins}</span></div>
+        <div class="mini-stat">WR: <span style="color:${wr >= 50 ? '#00e676' : '#ff1744'}">${wr}%</span></div>
+      </div>
+      <div style="display:flex; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 15px; background:rgba(0,0,0,0.5);">
+         <div style="width:${wr}%; background:#00e676; transition:width 0.5s ease; box-shadow: 0 0 10px rgba(0,230,118,0.5);"></div>
+         <div style="width:${lossPct}%; background:#ff1744; transition:width 0.5s ease;"></div>
+      </div>
+    </div>`;
+      }).join('');
+    }
+
+    function toggleOverviewDate() {
+      const f = document.getElementById('season-overview-filter').value;
+      document.getElementById('overview-date').style.display = f === 'date' ? 'inline-block' : 'none';
+    }
+
+    function renderSeasonOverview() {
+      const filterType = document.getElementById('season-overview-filter')?.value || 'season';
+      let allRaces = getRaces();
+
+      if (filterType === 'date') {
+        const dateInput = document.getElementById('overview-date');
+        if (!dateInput.value) dateInput.value = todayStr();
+        allRaces = allRaces.filter(r => r.date === dateInput.value);
+      }
+
+      const total = allRaces.length;
+      const wins = allRaces.filter(r => r.position === 1).length;
+      const losses = total - wins;
+      const wr = total ? Math.round(wins / total * 100) : 0;
+      const days = [...new Set(allRaces.map(r => r.date))].length;
+
+      const mapStats = {};
+      allRaces.forEach(r => {
+        if (!mapStats[r.map]) mapStats[r.map] = { wins: 0, losses: 0, total: 0 };
+        mapStats[r.map].total++;
+        if (r.position === 1) mapStats[r.map].wins++;
+        else mapStats[r.map].losses++;
+      });
+
+      let bestMapStr = '—';
+      let bestWinRate = -1;
+      let bestTotal = 0;
+
+      Object.entries(mapStats).forEach(([map, stats]) => {
+        if (stats.wins > 0) {
+          let currentWR = (stats.wins / stats.total) * 100;
+          if (currentWR > bestWinRate || (currentWR === bestWinRate && stats.total > bestTotal)) {
+            bestWinRate = currentWR; bestTotal = stats.total; bestMapStr = `${map} (${Math.round(currentWR)}%)`;
+          }
+        }
+      });
+
+      document.getElementById('season-overview').innerHTML = `
+  <div class="stats-row" style="margin-bottom:1rem">
+    <div class="stat-card glass-panel"><div class="stat-label">Total Races</div><div class="stat-value accent">${total}</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Total Wins</div><div class="stat-value win">${wins}</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Total Losses</div><div class="stat-value loss">${losses}</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Win Rate</div><div class="stat-value ${wr >= 50 ? 'win' : 'loss'}">${wr}%</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Days Played</div><div class="stat-value">${days}</div></div>
+    <div class="stat-card glass-panel"><div class="stat-label">Best Map</div><div class="stat-value" style="font-size:16px">${bestMapStr}</div></div>
+  </div>
+  ${total === 0 ? '<div class="empty-state"><div class="empty-icon">🏆</div>Log races to view stats.</div>' : ''}
+  `;
+
+      const chartWrap = document.getElementById('season-map-chart-wrap');
+      if (total === 0) { chartWrap.style.display = 'none'; } else {
+        chartWrap.style.display = 'block';
+        const labels = Object.keys(mapStats);
+        const winData = labels.map(m => mapStats[m].wins);
+        const lossData = labels.map(m => mapStats[m].losses);
+        const ctx = document.getElementById('seasonMapChart').getContext('2d');
+        if (seasonMapChartInstance) seasonMapChartInstance.destroy();
+
+        seasonMapChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Wins', data: winData, backgroundColor: '#00e676', borderRadius: 4 },
+              { label: 'Losses', data: lossData, backgroundColor: '#ff1744', borderRadius: 4 }
+            ]
+          },
+          options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { labels: { color: '#fff', font: { family: "Rajdhani" } } }, title: { display: true, text: 'Map Performance', color: '#fff', font: { size: 16, family: "Rajdhani" } } } }
+        });
+      }
+    }
+
+    function populateAnalyticsSeasons() {
+      const sel = document.getElementById('analytics-season-select');
+      sel.innerHTML = '';
+      Object.keys(db.seasons).forEach(s => {
+        const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o);
+      });
+    }
+
+    function toggleSeasonFilter() {
+      const groupBy = document.getElementById('chart-groupby').value;
+      document.getElementById('analytics-season-select').style.display = groupBy === 'season' ? 'inline-block' : 'none';
+    }
+
+    function renderCharts() {
+      const groupBy = document.getElementById('chart-groupby').value;
+      let allRaces = [];
+
+      if (groupBy === 'season') {
+        const selectedSeason = document.getElementById('analytics-season-select').value;
+        if (db.seasons[selectedSeason]) db.seasons[selectedSeason].races.forEach(r => allRaces.push({ ...r, season: selectedSeason }));
+      } else {
+        Object.keys(db.seasons).forEach(s => db.seasons[s].races.forEach(r => allRaces.push({ ...r, season: s })));
+      }
+
+      allRaces.sort((a, b) => a.date.localeCompare(b.date));
+      const aggregated = {};
+      allRaces.forEach(r => {
+        let key = r.date;
+        if (groupBy === 'month') key = r.date.slice(0, 7);
+        if (!aggregated[key]) aggregated[key] = { wins: 0, losses: 0 };
+        if (r.position === 1) aggregated[key].wins++; else aggregated[key].losses++;
+      });
+
+      const labels = Object.keys(aggregated);
+      const winData = labels.map(k => aggregated[k].wins);
+      const lossData = labels.map(k => aggregated[k].losses);
+      const ctx = document.getElementById('winLossChart').getContext('2d');
+      if (myChart) myChart.destroy();
+      myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Wins', data: winData, backgroundColor: '#00e676', borderRadius: 4 },
+            { label: 'Losses', data: lossData, backgroundColor: '#ff1744', borderRadius: 4 }
+          ]
+        },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { labels: { color: '#fff', font: { family: "Rajdhani" } } } } }
+      });
+    }
+
+    function renderCalendar() {
+      const dateInput = document.getElementById('calendar-date');
+      if (!dateInput.value) dateInput.value = todayStr();
+      const selectedDate = dateInput.value;
+      let allRaces = [];
+      Object.keys(db.seasons).forEach(s => db.seasons[s].races.forEach(r => allRaces.push(r)));
+
+      const dayRaces = allRaces.filter(r => r.date === selectedDate).reverse();
+      const contentDiv = document.getElementById('calendar-content');
+      const emptyDiv = document.getElementById('calendar-empty');
+
+      if (dayRaces.length === 0) { contentDiv.style.display = 'none'; emptyDiv.style.display = 'block'; return; }
+      contentDiv.style.display = 'block'; emptyDiv.style.display = 'none';
+
+      document.getElementById('calendar-race-list').innerHTML = `<table class="race-table"><thead><tr><th>Map / Track</th><th>Car</th><th>Result</th></tr></thead><tbody>${dayRaces.map(r => `
+    <tr>
+      <td><div style="font-weight:700; color:#fff">${r.map}</div><div style="font-size:12px;color:rgba(255,255,255,0.6)">${r.track}</div></td>
+      <td style="font-weight:600">${r.car}</td>
+      <td><span class="${r.position === 1 ? 'pos-badge pos-1' : 'pos-badge pos-other'}">P${r.position}</span></td>
+    </tr>`).join('')}</tbody></table>`;
+
+      let wins = 0; let losses = 0; let mapCounts = {};
+      dayRaces.forEach(r => { if (r.position === 1) wins++; else losses++; mapCounts[r.map] = (mapCounts[r.map] || 0) + 1; });
+
+      const pieCtx = document.getElementById('calendarPieChart').getContext('2d');
+      if (calPieChart) calPieChart.destroy();
+      calPieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: { labels: ['Wins', 'Losses'], datasets: [{ data: [wins, losses], backgroundColor: ['#00e676', '#ff1744'], borderColor: '#111', borderWidth: 2 }] },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#fff' }, position: 'bottom' }, title: { display: true, text: 'Win / Loss Ratio', color: '#fff', font: { size: 16, family: 'Rajdhani' } } } }
+      });
+
+      const barCtx = document.getElementById('calendarBarChart').getContext('2d');
+      if (calBarChart) calBarChart.destroy();
+      calBarChart = new Chart(barCtx, {
+        type: 'bar',
+        data: { labels: Object.keys(mapCounts), datasets: [{ label: 'Races', data: Object.values(mapCounts), backgroundColor: '#7b2cff', borderRadius: 4 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { ticks: { color: '#aaa' }, grid: { display: false } } }, plugins: { legend: { display: false }, title: { display: true, text: 'Maps Played', color: '#fff', font: { size: 16, family: 'Rajdhani' } } } }
+      });
+    }
+
+    function showToast(msg, type) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show ' + (type === 'err' ? 'err' : '');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    populateMaps();
+    loadDB();
+  </script>
+</body>
+
+</html>
